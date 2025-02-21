@@ -1,0 +1,23 @@
+# MetaTrader 5 specific
+*.ex5
+*.ex4
+*.dat
+*.dll
+*.zip
+*.rar
+*.7z
+
+# MetaTrader logs and data files
+*.log
+experts/files/*
+files/*
+logs/*
+tester/*
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# IDE specific files
+.vscode/
+.idea/

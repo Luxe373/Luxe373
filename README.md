@@ -7,10 +7,8 @@ A professional-grade MQL5 trading indicator that generates high-probability buy 
 - Multi-timeframe analysis
 - Dynamic ATR-based stop-loss and take-profit levels
 - Integration of multiple technical indicators:
-  - EMA (Exponential Moving Average)
   - RSI (Relative Strength Index)
   - ADX (Average Directional Index)
-  - ATR (Average True Range)
 - Price Action Pattern Recognition:
   - Engulfing patterns
   - Pin bars (hammer/shooting star)
@@ -35,8 +33,6 @@ A professional-grade MQL5 trading indicator that generates high-probability buy 
 - Color customization for bullish/bearish signals
 
 ### Technical Indicators
-- FastEMAPeriod: Period for fast EMA (default: 50)
-- SlowEMAPeriod: Period for slow EMA (default: 200)
 - RSIPeriod: Period for RSI calculation (default: 14)
 - ADXPeriod: Period for ADX calculation (default: 14)
 
@@ -57,14 +53,12 @@ A professional-grade MQL5 trading indicator that generates high-probability buy 
 The indicator generates signals based on the following conditions:
 
 ### Buy Signals
-- Fast EMA > Slow EMA (Bullish trend)
 - RSI > 50 (Bullish momentum)
 - ADX ≥ 20 (Strong trend)
 - Price action confirmation (if enabled)
 - Not near strong resistance level
 
 ### Sell Signals
-- Fast EMA < Slow EMA (Bearish trend)
 - RSI < 50 (Bearish momentum)
 - ADX ≥ 20 (Strong trend)
 - Price action confirmation (if enabled)
@@ -72,4 +66,4 @@ The indicator generates signals based on the following conditions:
 
 ## License
 
-Copyright © 2025. All rights reserved.
+Copyright 2025. All rights reserved.

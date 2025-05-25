@@ -7,9 +7,11 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, XYZ Company (Developer)"
 #property link      "https://www.xyz.com"
-#property version   "1.04" // Final Review and Refinements
+#property version   "1.05" // Compilation Error Fixes
 
 #property indicator_chart_window
+#property indicator_buffers 1 // For a dummy buffer
+#property indicator_plots   0 // No visible plots from buffers
 
 //--- Input Parameters (Organized for Clarity) ---
 
@@ -44,9 +46,8 @@ input int    InpMaxDowntrendLines      = 1;      // TL: Max number of downtrend 
 input group "Alerts"
 input bool   InpEnableAlerts           = true;   // Alerts: Enable/Disable all alerts for Price Action patterns
 
-//--- Indicator Buffers (Currently not used for plotting, objects are primary) ---
-// double ResistanceBuffer[];
-// double SupportBuffer[];
+//--- Indicator Buffers ---
+double DummyBuffer[]; // Dummy buffer for indicator plot requirements
 
 //--- Global Variables & Object Prefixes ---
 
@@ -100,6 +101,10 @@ int OnInit()
 //--- Set the number of decimal places for indicator values displayed on chart (if any were plotted)
    IndicatorSetInteger(INDICATOR_DIGITS, _Digits);
 
+//--- Initialize the dummy buffer
+   SetIndexBuffer(0, DummyBuffer, INDICATOR_CALCULATIONS);
+   PlotIndexSetInteger(0, PLOT_DRAW_TYPE, DRAW_NONE); // Make the dummy buffer invisible
+
 //--- Initialization successful
    return(INIT_SUCCEEDED);
   }
@@ -119,15 +124,15 @@ void OnDeinit(const int reason)
      }
    
 //--- Delete all Price Action pattern signal objects by their prefixes
-   ObjectsDeleteAll(0, bullishEngulfingSignalPrefix, 0, -1, -1); // Chart 0, Main window, Any object type
+   ObjectsDeleteAll(0, bullishEngulfingSignalPrefix, 0, -1, -1); 
    ObjectsDeleteAll(0, bearishEngulfingSignalPrefix, 0, -1, -1);
    ObjectsDeleteAll(0, bullishPinBarSignalPrefix, 0, -1, -1);
    ObjectsDeleteAll(0, bearishPinBarSignalPrefix, 0, -1, -1);
    ObjectsDeleteAll(0, dojiAtSRSignalPrefix, 0, -1, -1);
    
 //--- Delete all Trendline objects by their prefixes
-   ObjectsDeleteAll(0, uptrendLinePrefix, 0, OBJ_TREND);    // Chart 0, Main window, Type OBJ_TREND
-   ObjectsDeleteAll(0, downtrendLinePrefix, 0, OBJ_TREND);  // Chart 0, Main window, Type OBJ_TREND
+   ObjectsDeleteAll(0, uptrendLinePrefix, 0, OBJ_TREND, -1);
+   ObjectsDeleteAll(0, downtrendLinePrefix, 0, OBJ_TREND, -1);
 //---
   }
 
@@ -215,8 +220,8 @@ int OnCalculate(const int rates_total,    // Size of the price arrays
      }
      
    // Sort prices: Resistance descending (highest first), Support ascending (lowest first)
-   ArraySort(resistancePrices, WHOLE_ARRAY, 0, MODE_DESCEND);
-   ArraySort(supportPrices, WHOLE_ARRAY, 0, MODE_ASCEND);
+   ArraySort(resistancePrices, SORT_DESCEND);
+   ArraySort(supportPrices, SORT_ASCEND);
 
    // Manage and Draw Resistance Lines
    for(int i = 0; i < InpNumResistanceLevels; i++)
@@ -296,9 +301,9 @@ int OnCalculate(const int rates_total,    // Size of the price arrays
                    ObjectCreate(0, signalObjName, OBJ_ARROW_BUY, 0, time[bar_idx], low[bar_idx] - _Point * 10);
                    ObjectSetInteger(0, signalObjName, OBJPROP_COLOR, clrGreen);
                    ObjectSetInteger(0, signalObjName, OBJPROP_WIDTH, 1);
-                   ObjectSetInteger(0, signalObjName, OBJPROP_ARROW_CODE, 233); // Arrow shape
+                   ObjectSetInteger(0, signalObjName, OBJPROP_ARROWCODE, 233); // Arrow shape
                    // Alert for new signal on the latest bar
-                   if(InpEnableAlerts && bar_idx == rates_total - 1) Alert("PriceActionSRTL: Bullish Engulfing on ", _Symbol, " ", PeriodToString(_Period));
+                   if(InpEnableAlerts && bar_idx == rates_total - 1) Alert("PriceActionSRTL: Bullish Engulfing on ", _Symbol, " ", EnumToString(_Period));
                   }
                }
              
@@ -310,8 +315,8 @@ int OnCalculate(const int rates_total,    // Size of the price arrays
                    ObjectCreate(0, signalObjName, OBJ_ARROW_SELL, 0, time[bar_idx], high[bar_idx] + _Point * 10);
                    ObjectSetInteger(0, signalObjName, OBJPROP_COLOR, clrRed);
                    ObjectSetInteger(0, signalObjName, OBJPROP_WIDTH, 1);
-                   ObjectSetInteger(0, signalObjName, OBJPROP_ARROW_CODE, 234); // Arrow shape
-                   if(InpEnableAlerts && bar_idx == rates_total - 1) Alert("PriceActionSRTL: Bearish Engulfing on ", _Symbol, " ", PeriodToString(_Period));
+                   ObjectSetInteger(0, signalObjName, OBJPROP_ARROWCODE, 234); // Arrow shape
+                   if(InpEnableAlerts && bar_idx == rates_total - 1) Alert("PriceActionSRTL: Bearish Engulfing on ", _Symbol, " ", EnumToString(_Period));
                   }
                }
             }
@@ -327,8 +332,8 @@ int OnCalculate(const int rates_total,    // Size of the price arrays
                    ObjectCreate(0, signalObjName, OBJ_ARROW_BUY, 0, time[bar_idx], low[bar_idx] - _Point * 10);
                    ObjectSetInteger(0, signalObjName, OBJPROP_COLOR, clrLimeGreen);
                    ObjectSetInteger(0, signalObjName, OBJPROP_WIDTH, 1);
-                   ObjectSetInteger(0, signalObjName, OBJPROP_ARROW_CODE, 241); // Triangle shape
-                   if(InpEnableAlerts && bar_idx == rates_total - 1) Alert("PriceActionSRTL: Bullish Pin Bar on ", _Symbol, " ", PeriodToString(_Period));
+                   ObjectSetInteger(0, signalObjName, OBJPROP_ARROWCODE, 241); // Triangle shape
+                   if(InpEnableAlerts && bar_idx == rates_total - 1) Alert("PriceActionSRTL: Bullish Pin Bar on ", _Symbol, " ", EnumToString(_Period));
                   }
                }
 
@@ -340,8 +345,8 @@ int OnCalculate(const int rates_total,    // Size of the price arrays
                    ObjectCreate(0, signalObjName, OBJ_ARROW_SELL, 0, time[bar_idx], high[bar_idx] + _Point * 10);
                    ObjectSetInteger(0, signalObjName, OBJPROP_COLOR, clrTomato);
                    ObjectSetInteger(0, signalObjName, OBJPROP_WIDTH, 1);
-                   ObjectSetInteger(0, signalObjName, OBJPROP_ARROW_CODE, 242); // Triangle shape
-                   if(InpEnableAlerts && bar_idx == rates_total - 1) Alert("PriceActionSRTL: Bearish Pin Bar on ", _Symbol, " ", PeriodToString(_Period));
+                   ObjectSetInteger(0, signalObjName, OBJPROP_ARROWCODE, 242); // Triangle shape
+                   if(InpEnableAlerts && bar_idx == rates_total - 1) Alert("PriceActionSRTL: Bearish Pin Bar on ", _Symbol, " ", EnumToString(_Period));
                   }
                }
             }
@@ -357,10 +362,10 @@ int OnCalculate(const int rates_total,    // Size of the price arrays
                   {
                    ObjectCreate(0, signalObjName, OBJ_ARROW, 0, time[bar_idx], (high[bar_idx] + low[bar_idx]) / 2.0);
                    ObjectSetInteger(0, signalObjName, OBJPROP_COLOR, clrDodgerBlue);
-                   ObjectSetInteger(0, signalObjName, OBJPROP_ARROW_CODE, 171); // Diamond shape
+                   ObjectSetInteger(0, signalObjName, OBJPROP_ARROWCODE, 171); // Diamond shape
                    ObjectSetInteger(0, signalObjName, OBJPROP_WIDTH, 1);
-                   ObjectSetInteger(0, signalObjName, OBJPROP_ANCHOR, ANCHOR_MIDDLE);
-                   if(InpEnableAlerts && bar_idx == rates_total - 1) Alert("PriceActionSRTL: Doji near S/R on ", _Symbol, " ", PeriodToString(_Period));
+                   ObjectSetInteger(0, signalObjName, OBJPROP_ANCHOR, ANCHOR_CENTER);
+                   if(InpEnableAlerts && bar_idx == rates_total - 1) Alert("PriceActionSRTL: Doji near S/R on ", _Symbol, " ", EnumToString(_Period));
                   }
                }
             }
@@ -373,8 +378,8 @@ int OnCalculate(const int rates_total,    // Size of the price arrays
    if(InpEnableTrendlines && rates_total >= InpTrendlineLookbackBars && rates_total >= (InpFractalLookbackPeriod * 2 + 1) )
      {
       // Clean previously drawn trendlines to reflect the latest analysis
-      ObjectsDeleteAll(0, uptrendLinePrefix, 0, OBJ_TREND);
-      ObjectsDeleteAll(0, downtrendLinePrefix, 0, OBJ_TREND);
+      ObjectsDeleteAll(0, uptrendLinePrefix, 0, OBJ_TREND, -1);
+      ObjectsDeleteAll(0, downtrendLinePrefix, 0, OBJ_TREND, -1);
 
       // 1. Collect Fractal Points for Trendline Analysis
       FractalPoint identifiedTrendlineFractals[]; // Array to store relevant fractals for trendlines

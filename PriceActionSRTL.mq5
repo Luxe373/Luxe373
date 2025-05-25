@@ -7,7 +7,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, XYZ Company (Developer)"
 #property link      "https://www.xyz.com"
-#property version   "1.06" // Persistent Compilation Error Fixes
+#property version   "1.07" // Fix static array declaration error by moving to global dynamic
 
 #property indicator_chart_window
 #property indicator_buffers 1 // For a dummy buffer
@@ -65,6 +65,12 @@ string dojiAtSRSignalPrefix         = "DojiSR_";  // Prefix for Doji at S/R sign
 // Trendline Object Prefixes
 string uptrendLinePrefix   = "UTL_"; // Prefix for uptrend line objects
 string downtrendLinePrefix = "DTL_"; // Prefix for downtrend line objects
+
+// Global dynamic arrays for storing fractal data
+// These are resized and initialized in OnCalculate()
+double fractalUp[];   // Stores high price of up-fractals, or EMPTY_VALUE
+double fractalDown[]; // Stores low price of down-fractals, or EMPTY_VALUE
+
 
 //+------------------------------------------------------------------+
 //| Data Structure for Storing Fractal Point Information             |
@@ -154,10 +160,6 @@ int OnCalculate(const int rates_total,    // Size of the price arrays
 // === Part 1: S/R Level Calculation ===
 // Identifies S/R levels based on fractals within InpMaxBarsToScan from the current bar.
 // These S/R lines are dynamic and update with new price data.
-
-   // Arrays to store identified fractal prices for S/R calculation
-   double fractalUp[/*rates_total*/]; // Stores high price of up-fractals, or EMPTY_VALUE
-   double fractalDown[/*rates_total*/]; // Stores low price of down-fractals, or EMPTY_VALUE
    
    // Determine lookback period for S/R fractal identification
    int srLookbackBars = MathMin(rates_total, InpMaxBarsToScan);
@@ -169,10 +171,12 @@ int OnCalculate(const int rates_total,    // Size of the price arrays
       return(prev_calculated); // Not enough bars to form even a single fractal for S/R
    }
    
-   // Initialize fractal arrays
-   ArrayResize(fractalUp, rates_total);
-   ArrayResize(fractalDown, rates_total);
-   ArrayInitialize(fractalUp, EMPTY_VALUE);
+   // Resize and Initialize global fractal arrays for current calculation pass
+   // These arrays store fractal price levels or EMPTY_VALUE if no fractal.
+   if(ArraySize(fractalUp) != rates_total) ArrayResize(fractalUp, rates_total);
+   ArrayInitialize(fractalUp, EMPTY_VALUE); 
+   
+   if(ArraySize(fractalDown) != rates_total) ArrayResize(fractalDown, rates_total);
    ArrayInitialize(fractalDown, EMPTY_VALUE);
 
    // Identify all fractals across the loaded chart history (up to rates_total)

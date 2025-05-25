@@ -7,7 +7,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, XYZ Company (Developer)"
 #property link      "https://www.xyz.com"
-#property version   "1.05" // Compilation Error Fixes
+#property version   "1.06" // Persistent Compilation Error Fixes
 
 #property indicator_chart_window
 #property indicator_buffers 1 // For a dummy buffer
@@ -124,15 +124,15 @@ void OnDeinit(const int reason)
      }
    
 //--- Delete all Price Action pattern signal objects by their prefixes
-   ObjectsDeleteAll(0, bullishEngulfingSignalPrefix, 0, -1, -1); 
-   ObjectsDeleteAll(0, bearishEngulfingSignalPrefix, 0, -1, -1);
-   ObjectsDeleteAll(0, bullishPinBarSignalPrefix, 0, -1, -1);
-   ObjectsDeleteAll(0, bearishPinBarSignalPrefix, 0, -1, -1);
-   ObjectsDeleteAll(0, dojiAtSRSignalPrefix, 0, -1, -1);
+   ObjectsDeleteAll(0, bullishEngulfingSignalPrefix, 0, OBJ_ARROW_BUY); 
+   ObjectsDeleteAll(0, bearishEngulfingSignalPrefix, 0, OBJ_ARROW_SELL);
+   ObjectsDeleteAll(0, bullishPinBarSignalPrefix, 0, OBJ_ARROW_BUY);
+   ObjectsDeleteAll(0, bearishPinBarSignalPrefix, 0, OBJ_ARROW_SELL);
+   ObjectsDeleteAll(0, dojiAtSRSignalPrefix, 0, OBJ_ARROW);
    
 //--- Delete all Trendline objects by their prefixes
-   ObjectsDeleteAll(0, uptrendLinePrefix, 0, OBJ_TREND, -1);
-   ObjectsDeleteAll(0, downtrendLinePrefix, 0, OBJ_TREND, -1);
+   ObjectsDeleteAll(0, uptrendLinePrefix, 0, OBJ_TREND);
+   ObjectsDeleteAll(0, downtrendLinePrefix, 0, OBJ_TREND);
 //---
   }
 
@@ -220,8 +220,9 @@ int OnCalculate(const int rates_total,    // Size of the price arrays
      }
      
    // Sort prices: Resistance descending (highest first), Support ascending (lowest first)
-   ArraySort(resistancePrices, SORT_DESCEND);
-   ArraySort(supportPrices, SORT_ASCEND);
+   ArraySort(resistancePrices); // Sorts ascending by default
+   ArrayReverse(resistancePrices); // Reverse to get descending order
+   ArraySort(supportPrices);    // Sorts ascending by default, which is correct for support
 
    // Manage and Draw Resistance Lines
    for(int i = 0; i < InpNumResistanceLevels; i++)
@@ -378,8 +379,8 @@ int OnCalculate(const int rates_total,    // Size of the price arrays
    if(InpEnableTrendlines && rates_total >= InpTrendlineLookbackBars && rates_total >= (InpFractalLookbackPeriod * 2 + 1) )
      {
       // Clean previously drawn trendlines to reflect the latest analysis
-      ObjectsDeleteAll(0, uptrendLinePrefix, 0, OBJ_TREND, -1);
-      ObjectsDeleteAll(0, downtrendLinePrefix, 0, OBJ_TREND, -1);
+      ObjectsDeleteAll(0, uptrendLinePrefix, 0, OBJ_TREND);
+      ObjectsDeleteAll(0, downtrendLinePrefix, 0, OBJ_TREND);
 
       // 1. Collect Fractal Points for Trendline Analysis
       FractalPoint identifiedTrendlineFractals[]; // Array to store relevant fractals for trendlines

@@ -7,7 +7,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, XYZ Company (Developer)"
 #property link      "https://www.xyz.com"
-#property version   "1.14" // Implement Confluence Filter
+#property version   "1.18" // Fix critical compilation errors
 
 #property indicator_chart_window
 #property indicator_buffers 1 // For a dummy buffer
@@ -31,6 +31,7 @@ input bool InpEnableDojiAtSR         = true;   // PA: Enable/disable Doji at S/R
 //input double InpPinBarWickToBodyRatio = 2.5;    // PA: (Old) Minimum ratio of wick to body for Pin Bars - Replaced by ATR
 input int  InpDojiMaxBodySizePoints  = 5;      // PA: Maximum body size in points for a Doji (kept points-based for Doji body definition)
 //input int  InpDojiProximityToSRPoints= 10;     // PA: (Old) Proximity in points for a Doji to be "near" S/R - Replaced by ATR
+input int  InpDojiSignalArrowCode    = 171;    // PA: Arrow code for Doji signal (e.g., 171 for a small circle/dot)
 
 // Trendline Detection Settings
 input group "Trendline Detection"
@@ -115,7 +116,7 @@ void CalculateAndDrawTrendlines(int current_rates_total, const datetime &current
 void DetectAndDrawPricePatterns(int current_prev_calculated, int current_rates_total, const datetime &current_time[], const double &current_open[], const double &current_high[], const double &current_low[], const double &current_close[]);
 void CleanupAllIndicatorObjects();
 void CleanupSRAndTrendlineObjects();
-void MaybeAlert(string message, int bar_idx, int current_rates_total);
+void MaybeAlert(string message, int bar_idx, int current_rates_total); // Kept original signature as no error was reported for it
 bool IsPinBar(int bar_idx, bool isBullishSignal, const double &open[], const double &high[], const double &low[], const double &close[], double minWickAbs, double maxBodyAbs);
 bool IsDojiNearSR(int bar_idx, const double &open[], const double &high[], const double &low[], const double &close[],
                   int maxBodyPoints, double maxProximityAbsDistance, 
@@ -513,6 +514,7 @@ void DetectAndDrawPricePatterns(int current_prev_calculated, int current_rates_t
        string alertMsg; 
        bool paPatternFound = false;
        bool isBullishSignal = false; // To guide trendline check direction
+       ENUM_OBJECT arrowType = OBJ_ARROW; // Default, will be specified
 
        if(InpEnableEngulfing)
          {
@@ -554,8 +556,7 @@ void DetectAndDrawPricePatterns(int current_prev_calculated, int current_rates_t
           if(IsDojiNearSR(bar_idx, current_open, current_high, current_low, current_close, InpDojiMaxBodySizePoints, dynamicDojiProx, 
                            resistanceLinePrefix, supportLinePrefix, InpNumResistanceLevels, InpNumSupportLevels))
             {
-             paPatternFound = true; // isBullishSignal can be ambiguous for Doji, might need context
-             // For Doji, confluence check might consider proximity to *either* up or down trendline if applicable
+             paPatternFound = true; // isBullishSignal for Doji is determined by confluence/breakout later if needed
              signalObjName = dojiAtSRSignalPrefix + IntegerToString(bar_idx);
              alertMsg = "PriceActionSRTL: Doji near S/R on " + _Symbol + " " + EnumToString(_Period);
             }
@@ -573,17 +574,17 @@ void DetectAndDrawPricePatterns(int current_prev_calculated, int current_rates_t
              bool isResistanceHit = false; int srLevelIndex = -1;
              double distToSR_Abs = GetNearestSRLevelInfo(bar_idx, current_high, current_low, isResistanceHit, srLevelIndex);
 
-             bool checkUptrendsForConfluence = !isResistanceHit; // If near resistance, look for downtrend confluence; if near support, look for uptrend
-             if (StringFind(signalObjName, dojiAtSRSignalPrefix, 0) == 0) // For Doji, allow either trendline type if close enough
+             bool checkUptrendsForConfluence = !isResistanceHit; // Default: If near support, check uptrend; if near resistance, check downtrend.
+             if (StringFind(signalObjName, dojiAtSRSignalPrefix, 0) == 0) // For Doji, determine nearest trendline type
              {
                 int tlUpIdx = -1, tlDownIdx = -1;
                 double distToUTL = GetDistanceToNearestTrendline(bar_idx, current_time, current_high, current_low, true, tlUpIdx);
                 double distToDTL = GetDistanceToNearestTrendline(bar_idx, current_time, current_high, current_low, false, tlDownIdx);
                 
-                if (distToUTL < distToDTL) {
-                    checkUptrendsForConfluence = true; // Nearest is uptrend
-                } else {
-                    checkUptrendsForConfluence = false; // Nearest is downtrend (or equal, default to downtrend)
+                if (distToUTL <= distToDTL) { // If UTL is closer or equidistant
+                    checkUptrendsForConfluence = true; 
+                } else { // DTL is closer
+                    checkUptrendsForConfluence = false; 
                 }
              }
 
@@ -602,26 +603,29 @@ void DetectAndDrawPricePatterns(int current_prev_calculated, int current_rates_t
 
           if(drawSignal)
             {
-             ENUM_OBJECT_TYPE arrowType = OBJ_ARROW_BUY;
+             // Corrected type from ENUM_OBJECT_TYPE to ENUM_OBJECT
+             ENUM_OBJECT currentArrowType = OBJ_ARROW_BUY; // Defaulting to BUY, will be specified
              color arrowColor = clrGreen;
              double arrowYPos = current_low[bar_idx] - _Point * 10;
              int arrowCode = 233; // Default Bullish Engulfing
 
              if(StringFind(signalObjName, bearishEngulfingSignalPrefix, 0) == 0)
-               { arrowType = OBJ_ARROW_SELL; arrowColor = clrRed; arrowYPos = current_high[bar_idx] + _Point * 10; arrowCode = 234;}
+               { currentArrowType = OBJ_ARROW_SELL; arrowColor = clrRed; arrowYPos = current_high[bar_idx] + _Point * 10; arrowCode = 234;}
+             else if(StringFind(signalObjName, bullishEngulfingSignalPrefix, 0) == 0) // Explicitly Bullish Engulfing
+               { currentArrowType = OBJ_ARROW_BUY; arrowColor = clrGreen; arrowYPos = current_low[bar_idx] - _Point * 10; arrowCode = 233;}
              else if(StringFind(signalObjName, bullishPinBarSignalPrefix, 0) == 0)
-               { arrowType = OBJ_ARROW_BUY; arrowColor = clrLimeGreen; arrowYPos = current_low[bar_idx] - _Point * 10; arrowCode = 241;}
+               { currentArrowType = OBJ_ARROW_BUY; arrowColor = clrLimeGreen; arrowYPos = current_low[bar_idx] - _Point * 10; arrowCode = 241;}
              else if(StringFind(signalObjName, bearishPinBarSignalPrefix, 0) == 0)
-               { arrowType = OBJ_ARROW_SELL; arrowColor = clrTomato; arrowYPos = current_high[bar_idx] + _Point * 10; arrowCode = 242;}
+               { currentArrowType = OBJ_ARROW_SELL; arrowColor = clrTomato; arrowYPos = current_high[bar_idx] + _Point * 10; arrowCode = 242;}
              else if(StringFind(signalObjName, dojiAtSRSignalPrefix, 0) == 0)
-               { arrowType = OBJ_ARROW; arrowColor = clrDodgerBlue; arrowYPos = (current_high[bar_idx] + current_low[bar_idx]) / 2.0; arrowCode = 171;}
+               { currentArrowType = OBJ_ARROW; arrowColor = clrDodgerBlue; arrowYPos = (current_high[bar_idx] + current_low[bar_idx]) / 2.0; arrowCode = InpDojiSignalArrowCode;}
 
 
-             ObjectCreate(0, signalObjName, arrowType, 0, current_time[bar_idx], arrowYPos);
+             ObjectCreate(0, signalObjName, currentArrowType, 0, current_time[bar_idx], arrowYPos);
              ObjectSetInteger(0, signalObjName, OBJPROP_COLOR, arrowColor); 
              ObjectSetInteger(0, signalObjName, OBJPROP_WIDTH, 1);
-             ObjectSetInteger(0, signalObjName, OBJPROP_ARROWCODE, arrowCode);
-             if(arrowType == OBJ_ARROW) ObjectSetInteger(0, signalObjName, OBJPROP_ANCHOR, ANCHOR_CENTER);
+             ObjectSetInteger(0, signalObjName, OBJPROP_ARROWCODE, arrowCode); // OBJPROP_ARROWCODE applies to OBJ_ARROW & OBJ_ARROW_BUY/SELL
+             if(currentArrowType == OBJ_ARROW) ObjectSetInteger(0, signalObjName, OBJPROP_ANCHOR, ANCHOR_CENTER);
              
              MaybeAlert(alertMsg, bar_idx, current_rates_total);
             }
@@ -850,6 +854,10 @@ double GetDistanceToNearestTrendline(int bar_idx, const datetime &time[], const 
 //+------------------------------------------------------------------+
 /* Helper comments from previous versions retained for reference. */
 //+------------------------------------------------------------------+
+
+[end of PriceActionSRTL.mq5]
+
+[end of PriceActionSRTL.mq5]
 
 [end of PriceActionSRTL.mq5]
 

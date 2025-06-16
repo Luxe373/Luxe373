@@ -7,8 +7,8 @@
 #property version   "2.00"
 #property strict
 #property indicator_chart_window
-#property indicator_buffers 15
-#property indicator_plots   15
+#property indicator_buffers 13
+#property indicator_plots   13
 
 // Plot index settings for Moving Averages
 #property indicator_label1  "Fast MA"
@@ -64,29 +64,11 @@
 #property indicator_label13  "Sell SL"
 #property indicator_type13   DRAW_NONE
 
-#property indicator_label14  "Fast MA Buffer"
-#property indicator_type14   DRAW_NONE
-
-#property indicator_label15  "Slow MA Buffer"
-#property indicator_type15   DRAW_NONE
-
 // ✅ Default User Inputs - Optimized for Long-Term Trends
-input int EMA_Fast_Period = 50;      // Fast EMA period
-input int EMA_Slow_Period = 200;     // Slow EMA period
 input int RSI_Period = 14;
 input int ATR_Period = 14;
 input int ADX_Period = 14;
 input double RiskRewardRatio = 1.5;  // Standard risk-reward ratio
-
-// ✅ Risk Management Settings
-input group "Risk Management"
-input double M1_ATR_Multiplier = 1.0;   // M1 ATR multiplier for SL
-input double M5_ATR_Multiplier = 1.2;   // M5 ATR multiplier for SL
-input double M15_ATR_Multiplier = 1.5;  // M15 ATR multiplier for SL
-input double H1_ATR_Multiplier = 1.8;   // H1 ATR multiplier for SL
-input double H4_ATR_Multiplier = 2.0;   // H4 ATR multiplier for SL
-input double D1_ATR_Multiplier = 2.0;   // D1 ATR multiplier for SL
-input double W1_ATR_Multiplier = 3.0;   // W1 ATR multiplier for SL
 
 // ✅ Support/Resistance Settings
 input group "Support/Resistance"
@@ -104,24 +86,9 @@ input int RSI_Oversold = 30;      // RSI oversold level
 input int RSI_Warning = 60;       // RSI warning level for trend exhaustion
 
 // ✅ Additional Filters
-input bool Use_Engulfing_Filter = true;
-input bool Use_EMA_Distance_Filter = true;
-input bool Use_SupportResistance_Filter = true;
-input bool Use_ATR_Filter = true;
-input bool Show_Debug_Info = true;
+input bool Show_Debug_Info = true; // This is used by DisplayMarketAnalysis indirectly
 
 // ✅ Price Action Parameters
-input bool Use_Engulfing_Pattern = true;
-input bool Use_PinBar_Pattern = true;
-input bool Use_InsideBar_Pattern = true;
-input double PinBar_Factor = 2.0;      // Pin bar nose length vs body
-
-// ✅ Market Analysis Settings
-input group "Market Analysis"
-input bool Show_Analysis = true;           // Show market analysis
-input color Text_Color = clrWhite;         // Text color
-input int Font_Size = 8;                   // Font size
-input string Font_Name = "Consolas";       // Font name
 
 // ✅ Visualization
 input group "Visualization"
@@ -137,17 +104,7 @@ input int FastMA_Period = 21;       // Fast Moving Average Period
 input int SlowMA_Period = 50;       // Slow Moving Average Period
 input ENUM_MA_METHOD MA_Method = MODE_EMA;  // Moving Average Method
 
-// ✅ Trade Display Settings
-input group "Trade Display Settings"
-input bool Show_Trade_History = true;     // Show historical trades
-input int Max_Trades_Display = 50;        // Maximum trades to display
-input color Profit_Color = clrLimeGreen;  // Profitable trade color
-input color Loss_Color = clrRed;          // Loss trade color
-input int Trade_Label_Size = 8;           // Trade label text size
-
 // ✅ Indicator Buffers
-double EmaFastBuffer[];
-double EmaSlowBuffer[];
 double BuyBuffer[];
 double SellBuffer[];
 double RSIBuffer[];
@@ -162,20 +119,6 @@ double SellSL[];
 double FastMABuffer[];
 double SlowMABuffer[];
 
-// Trade Info Structure
-struct TradeInfo
-{
-    datetime openTime;
-    datetime closeTime;
-    double openPrice;
-    double closePrice;
-    double profit;
-    string direction;
-    string comment;
-};
-
-TradeInfo trades[];
-
 // ✅ Indicator Handles
 int FastMA_Handle;
 int SlowMA_Handle;
@@ -186,7 +129,6 @@ int ADX_Handle;
 // Global Variables
 int digits;  // Symbol digits
 double point;  // Symbol point
-double pipValue;  // Value of one pip
 
 //+------------------------------------------------------------------+
 //| Get symbol-specific data                                           |
@@ -195,7 +137,6 @@ bool GetSymbolData()
 {
     digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
     point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-    pipValue = point * 10;
     
     if(digits == 0 || point == 0)
     {
@@ -203,18 +144,8 @@ bool GetSymbolData()
         return false;
     }
     
-    Print("✅ Symbol data loaded - digits: ", digits, " point: ", point, " pipValue: ", pipValue);
+    Print("✅ Symbol data loaded - digits: ", digits, " point: ", point);
     return true;
-}
-
-//+------------------------------------------------------------------+
-//| Check if current bar is finished                                   |
-//+------------------------------------------------------------------+
-bool IsBarFinished()
-{
-    datetime time_current = TimeCurrent();
-    datetime time_prev = iTime(_Symbol, PERIOD_CURRENT, 0);
-    return time_current >= time_prev + PeriodSeconds(PERIOD_CURRENT);
 }
 
 //+------------------------------------------------------------------+
@@ -307,8 +238,8 @@ int OnInit()
     ArrayInitialize(ADXBuffer, EMPTY_VALUE);
     
     // Create indicator handles with timeframe-specific periods
-    FastMA_Handle = iMA(_Symbol, PERIOD_CURRENT, fastPeriod, 0, MODE_EMA, PRICE_CLOSE);
-    SlowMA_Handle = iMA(_Symbol, PERIOD_CURRENT, slowPeriod, 0, MODE_EMA, PRICE_CLOSE);
+    FastMA_Handle = iMA(_Symbol, PERIOD_CURRENT, fastPeriod, 0, MA_Method, PRICE_CLOSE);
+    SlowMA_Handle = iMA(_Symbol, PERIOD_CURRENT, slowPeriod, 0, MA_Method, PRICE_CLOSE);
     RSI_Handle = iRSI(_Symbol, PERIOD_CURRENT, RSI_Period, PRICE_CLOSE);
     ATR_Handle = iATR(_Symbol, PERIOD_CURRENT, ATR_Period);
     ADX_Handle = iADX(_Symbol, PERIOD_CURRENT, ADX_Period);
@@ -348,62 +279,19 @@ void OnDeinit(const int reason)
 }
 
 //+------------------------------------------------------------------+
-//| Display Signal Information Using Comment()                      |
-//+------------------------------------------------------------------+
-void DisplaySignalInfo(string text)
-{
-    // Only used by DisplayMarketAnalysis, no direct chart display
-    return;
-}
-
-//+------------------------------------------------------------------+
-//| Function to check if price is in valid trading range             |
-//+------------------------------------------------------------------+
-bool IsValidTradingRange(const int index)
-{
-    double range = MathAbs(ResistanceBuffer[index] - SupportBuffer[index]);
-    double minRequiredRange = ATRBuffer[index] * Min_Range_Multiplier;
-    
-    return (range >= minRequiredRange);
-}
-
-//+------------------------------------------------------------------+
-//| Function to check if we have a strong trend                      |
-//+------------------------------------------------------------------+
-bool IsStrongTrend(const int index)
-{
-    return (ADXBuffer[index] > ADX_Threshold);
-}
-
-//+------------------------------------------------------------------+
-//| Function to validate breakout                                    |
-//+------------------------------------------------------------------+
-bool ValidateBreakout(const int index, const bool isBuy, const double &close[])
-{
-    double srZone = ATRBuffer[index] * ATR_Zone_Multiplier;
-    
-    if(isBuy)
-    {
-        // Buy signal: price closes above resistance zone
-        return (close[index] > ResistanceBuffer[index] + srZone);
-    }
-    else
-    {
-        // Sell signal: price closes below support zone
-        return (close[index] < SupportBuffer[index] - srZone);
-    }
-}
-
-//+------------------------------------------------------------------+
 //| Modified support/resistance calculation                          |
 //+------------------------------------------------------------------+
 void CalculateSupportResistance(const int index, const double &high[], const double &low[], const double &close[])
 {
-    if (index < 0 || ArraySize(high) < 50 || ArraySize(low) < 50)
+    if (index < 0 || ATRBuffer[index] == EMPTY_VALUE || ATRBuffer[index] == 0.0)
     {
-        Print("❌ Error: Not enough data for S/R calculation.");
+        SupportBuffer[index] = EMPTY_VALUE;
+        ResistanceBuffer[index] = EMPTY_VALUE;
         return;
     }
+    // ArraySize checks are good, but let's ensure index is valid for buffer access too.
+    // The ATRBuffer check above implicitly handles cases where index might be too large for initially unfilled buffers.
+    // However, the original ArraySize check is also fine. For consistency with prompt, keeping ATR check.
 
     // Get current price
     double currentPrice = close[index];
@@ -486,74 +374,6 @@ void CalculateSupportResistance(const int index, const double &high[], const dou
               " | Resistance = ", DoubleToString(ResistanceBuffer[index], _Digits),
               " | Current Price = ", DoubleToString(currentPrice, _Digits));
     }
-}
-
-//+------------------------------------------------------------------+
-//| Enhanced market condition analysis                                 |
-//+------------------------------------------------------------------+
-string AnalyzeMarketConditions(const int index)
-{
-    string analysis = "\n=== Market Analysis ===\n";
-    
-    // Trend Analysis
-    analysis += "🔄 TREND STATUS:\n";
-    bool isUptrend = EmaFastBuffer[index] > EmaSlowBuffer[index];
-    double emaDiff = (EmaFastBuffer[index] - EmaSlowBuffer[index]) / Point();
-    
-    analysis += "🔄 TREND STATUS:\n";
-    if(isUptrend)
-    {
-        analysis += "📈 Uptrend - Fast EMA above Slow EMA\n";
-        analysis += "   Strength: " + DoubleToString(emaDiff * Point(), _Digits) + " points\n";
-    }
-    else
-    {
-        analysis += "📉 Downtrend - Fast EMA below Slow EMA\n";
-        analysis += "   Strength: " + DoubleToString(MathAbs(emaDiff) * Point(), _Digits) + " points\n";
-    }
-    
-    // RSI Analysis
-    analysis += "\n📊 RSI ANALYSIS:\n";
-    if(RSIBuffer[index] > RSI_Overbought)
-        analysis += "⚠️ OVERBOUGHT - High probability of pullback\n";
-    else if(RSIBuffer[index] > RSI_Warning)
-        analysis += "⚠️ Approaching overbought - Exercise caution\n";
-    else if(RSIBuffer[index] < RSI_Oversold)
-        analysis += "⚠️ OVERSOLD - Watch for potential reversal\n";
-    else
-        analysis += "✅ RSI in neutral zone\n";
-    
-    // Trend Strength
-    analysis += "\n💪 TREND STRENGTH:\n";
-    if(ADXBuffer[index] > 25)
-        analysis += "✅ Strong trend (ADX > 25)\n";
-    else if(ADXBuffer[index] > 20)
-        analysis += "⚠️ Moderate trend strength\n";
-    else
-        analysis += "❌ Weak trend - Consider ranging market strategies\n";
-    
-    // Range Analysis
-    analysis += "\n📐 RANGE ANALYSIS:\n";
-    double range = MathAbs(ResistanceBuffer[index] - SupportBuffer[index]);
-    double minRange = ATRBuffer[index] * Min_Range_Multiplier;
-    
-    analysis += "Current Range: " + DoubleToString(range, _Digits) + "\n";
-    analysis += "Minimum Required: " + DoubleToString(minRange, _Digits) + "\n";
-    
-    if(range < minRange)
-        analysis += "⚠ Range too tight for reliable signals\n";
-    else
-        analysis += "✅ Sufficient range for trading\n";
-    
-    // Market Context Warning
-    if(RSIBuffer[index] > RSI_Warning && ADXBuffer[index] < 25)
-    {
-        analysis += "\n🚨 SPECIAL WARNING:\n";
-        analysis += "High RSI with weak trend strength suggests\n";
-        analysis += "increased probability of pullback or consolidation.\n";
-    }
-    
-    return analysis;
 }
 
 //+------------------------------------------------------------------+
@@ -704,6 +524,9 @@ int OnCalculate(const int rates_total,
         SellTP[i] = EMPTY_VALUE;
         SellSL[i] = EMPTY_VALUE;
         
+        // Calculate Support and Resistance first
+        CalculateSupportResistance(i, high, low, close);
+
         // Calculate signals
         if(IsBuySignal(i, high, low, close))
         {
@@ -781,261 +604,6 @@ void GetRSIThresholds(double &buyThreshold, double &sellThreshold)
 }
 
 //+------------------------------------------------------------------+
-//| Print Signal Analysis to Expert Log                               |
-//+------------------------------------------------------------------+
-void PrintSignalAnalysis(const double emaFast, const double emaSlow, const double rsi, const double adx, 
-                        const bool nearSupport, const bool nearResistance)
-{
-    // Only print to log, not to chart
-    return;
-}
-
-//+------------------------------------------------------------------+
-//| Get most recent valid price                                        |
-//+------------------------------------------------------------------+
-double GetValidPrice()
-{
-    MqlTick last_tick;
-    if(!SymbolInfoTick(_Symbol, last_tick))
-    {
-        Print("Error getting last tick: ", GetLastError());
-        return 0;
-    }
-    return last_tick.last;
-}
-
-//+------------------------------------------------------------------+
-//| Get current market data                                            |
-//+------------------------------------------------------------------+
-bool GetCurrentMarketData(double &price, double &bid, double &ask, datetime &tick_time)
-{
-    MqlTick last_tick;
-    if(!SymbolInfoTick(_Symbol, last_tick))
-    {
-        Print("Error getting market data: ", GetLastError());
-        return false;
-    }
-    
-    price = last_tick.last;
-    bid = last_tick.bid;
-    ask = last_tick.ask;
-    tick_time = last_tick.time;
-    return true;
-}
-
-//+------------------------------------------------------------------+
-//| Detect Engulfing Pattern                                           |
-//+------------------------------------------------------------------+
-bool IsEngulfingPattern(const int index, const double &open[], const double &close[], bool isBullish)
-{
-    if(index < 1) return false;
-    
-    double currentBody = MathAbs(close[index] - open[index]);
-    double prevBody = MathAbs(close[index+1] - open[index+1]);
-    
-    if(isBullish)
-    {
-        return close[index] > open[index] &&           // Current bar is bullish
-               close[index+1] < open[index+1] &&       // Previous bar is bearish
-               open[index] < close[index+1] &&         // Current open below prev close
-               close[index] > open[index+1] &&         // Current close above prev open
-               currentBody > prevBody * 1.1;           // Current body larger than prev
-    }
-    else
-    {
-        return close[index] < open[index] &&           // Current bar is bearish
-               close[index+1] > open[index+1] &&       // Previous bar is bullish
-               open[index] > close[index+1] &&         // Current open above prev close
-               close[index] < open[index+1] &&         // Current close below prev open
-               currentBody > prevBody * 1.1;           // Current body larger than prev
-    }
-}
-
-//+------------------------------------------------------------------+
-//| Detect Pin Bar Pattern                                             |
-//+------------------------------------------------------------------+
-bool IsPinBar(const int index, const double &open[], const double &high[], const double &low[], const double &close[], bool isBullish)
-{
-    if(index < 1) return false;
-    
-    double body = MathAbs(open[index] - close[index]);
-    double upperWick = high[index] - MathMax(open[index], close[index]);
-    double lowerWick = MathMin(open[index], close[index]) - low[index];
-    double totalLength = high[index] - low[index];
-    
-    if(totalLength == 0) return false;
-    
-    if(isBullish)  // Hammer
-    {
-        return lowerWick > body * PinBar_Factor &&     // Long lower wick
-               upperWick < body * 0.3 &&               // Short upper wick
-               lowerWick > totalLength * 0.6;          // Lower wick is majority of candle
-    }
-    else  // Shooting Star
-    {
-        return upperWick > body * PinBar_Factor &&     // Long upper wick
-               lowerWick < body * 0.3 &&               // Short lower wick
-               upperWick > totalLength * 0.6;          // Upper wick is majority of candle
-    }
-}
-
-//+------------------------------------------------------------------+
-//| Detect Inside Bar Pattern                                          |
-//+------------------------------------------------------------------+
-bool IsInsideBar(const int index, const double &high[], const double &low[])
-{
-    if(index < 1) return false;
-    
-    return high[index] < high[index+1] &&     // Current high below previous high
-           low[index] > low[index+1];         // Current low above previous low
-}
-
-//+------------------------------------------------------------------+
-//| Detect Double Top/Bottom Pattern                                   |
-//+------------------------------------------------------------------+
-bool IsDoublePattern(const int index, const double &high[], const double &low[], const int lookback, bool isTop)
-{
-    if(index < lookback) return false;
-    
-    double tolerance = ATRBuffer[index] * 0.2;  // Use ATR for dynamic tolerance
-    double firstLevel = isTop ? high[index + lookback] : low[index + lookback];
-    double currentLevel = isTop ? high[index] : low[index];
-    
-    // Check if current level is within tolerance of first level
-    if(MathAbs(currentLevel - firstLevel) > tolerance)
-        return false;
-        
-    // Check for lower low (double top) or higher high (double bottom) between points
-    for(int i = index + 1; i < index + lookback; i++)
-    {
-        if(isTop)
-        {
-            if(high[i] > firstLevel + tolerance)
-                return false;
-            if(low[i] < MathMin(low[index], low[index + lookback]) - tolerance)
-                return true;
-        }
-        else
-        {
-            if(low[i] < firstLevel - tolerance)
-                return false;
-            if(high[i] > MathMax(high[index], high[index + lookback]) + tolerance)
-                return true;
-        }
-    }
-    return false;
-}
-
-//+------------------------------------------------------------------+
-//| Add timeframe check and recommendation                           |
-//+------------------------------------------------------------------+
-string GetTimeframeRecommendation()
-{
-    ENUM_TIMEFRAMES current_tf = Period();
-    
-    switch(current_tf)
-    {
-        case PERIOD_M1:
-        case PERIOD_M5:
-        case PERIOD_M15:
-        case PERIOD_M30:
-            return "⚠️ Current timeframe too short for swing trading.\nRecommended: H4, D1, or W1";
-            
-        case PERIOD_H1:
-            return "⚠️ H1 timeframe marginal for swing trading.\nRecommended: H4, D1, or W1";
-            
-        case PERIOD_H4:
-            return "✅ H4 timeframe good for shorter swing trades";
-            
-        case PERIOD_D1:
-            return "✅ D1 timeframe ideal for swing trading";
-            
-        case PERIOD_W1:
-        case PERIOD_MN1:
-            return "✅ Excellent for position trading";
-    }
-    
-    return "";
-}
-
-//+------------------------------------------------------------------+
-//| Update debug information                                          |
-//+------------------------------------------------------------------+
-void UpdateDebugInfo(const int index, 
-                    const bool nearSupport,
-                    const bool nearResistance)
-{
-    // Disable debug info on chart
-    return;
-}
-
-//+------------------------------------------------------------------+
-//| Enhanced Market Analysis Function                                  |
-//+------------------------------------------------------------------+
-bool IsValidTradingSetup(const int index, const bool isBuy, 
-                        const double &close[], const double &high[], const double &low[])
-{
-    // First check if we have enough data
-    if(index < 0 || index >= ArraySize(FastMABuffer) || 
-       index + 5 >= ArraySize(FastMABuffer))  // Need 5 more bars for angle calculation
-    {
-        return false;
-    }
-
-    // Check if we have valid MA values
-    if(FastMABuffer[index] == EMPTY_VALUE || SlowMABuffer[index] == EMPTY_VALUE)
-    {
-        return false;
-    }
-
-    // Check if price is in proper position relative to MAs
-    bool maAlignment = false;
-    if(isBuy)
-    {
-        maAlignment = close[index] > FastMABuffer[index] && 
-                     FastMABuffer[index] > SlowMABuffer[index];
-    }
-    else
-    {
-        maAlignment = close[index] < FastMABuffer[index] && 
-                     FastMABuffer[index] < SlowMABuffer[index];
-    }
-    
-    // Check for trend strength using MA angle
-    // Only calculate if we have enough bars
-    bool strongTrend = false;
-    if(index + 5 < ArraySize(FastMABuffer))
-    {
-        double maAngle = MathArctan((FastMABuffer[index] - FastMABuffer[index+5]) / 5) * 180 / M_PI;
-        strongTrend = MathAbs(maAngle) >= 15; // Minimum angle for strong trend
-    }
-    
-    // Check RSI conditions
-    bool validRSI = true;
-    if(RSIBuffer[index] == EMPTY_VALUE)
-    {
-        return false;
-    }
-    
-    if(isBuy && RSIBuffer[index] > RSI_Overbought)
-        validRSI = false;
-    if(!isBuy && RSIBuffer[index] < RSI_Oversold)
-        validRSI = false;
-        
-    // Range analysis
-    if(ATRBuffer[index] == EMPTY_VALUE)
-    {
-        return false;
-    }
-    
-    double atr = ATRBuffer[index];
-    double rangeSize = MathAbs(high[index] - low[index]);
-    bool validRange = rangeSize >= atr * Min_Range_Multiplier;
-    
-    return maAlignment && strongTrend && validRSI && validRange;
-}
-
-//+------------------------------------------------------------------+
 //| Calculate Signals                                                 |
 //+------------------------------------------------------------------+
 bool IsBuySignal(const int index,
@@ -1044,6 +612,9 @@ bool IsBuySignal(const int index,
                  const double &close[])
 {
     if(index < 1) return false;
+
+    // Ensure ATRBuffer is valid before use
+    if(ATRBuffer[index] == EMPTY_VALUE || ATRBuffer[index] == 0) return false;
     
     // Get timeframe-specific ATR multiplier
     double atrMultiplier = GetTimeframeATRMultiplier();
@@ -1111,15 +682,6 @@ bool IsSellSignal(const int index,
     bool priceBelowMA = currentPrice < FastMABuffer[index];
     
     return (strongTrend || maSignal) && rsiValid && validRange && priceBelowMA;
-}
-
-//+------------------------------------------------------------------+
-//| Display Trade History on Chart                                     |
-//+------------------------------------------------------------------+
-void DisplayTrades()
-{
-    // Just return, we don't want to display trades on chart
-    return;
 }
 
 //+------------------------------------------------------------------+
@@ -1230,7 +792,7 @@ void DisplayMarketAnalysis(const int index, const double &close[])
     }
     
     // === Timeframe Analysis ===
-    analysis += GetTimeframeRecommendation();
+    // analysis += GetTimeframeRecommendation(); // Removed as function is removed
     
     // Display the result on the chart
     Comment(analysis);

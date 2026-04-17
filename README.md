@@ -67,3 +67,15 @@ The indicator generates signals based on the following conditions:
 ## License
 
 Copyright 2025. All rights reserved.
+
+## Hybrid MR75 × QPB Elite (v1.10)
+
+`Hybrid_MR75_QPB_Elite_v1.mq5` is a production-hardening wrapper that combines MR75 inflection scoring and QPB predictive bands with stricter input validation, deduplicated alerting, and optional timer-driven dashboard refresh.
+
+### Production-safety additions
+- Input guardrails for confidence, R:R, ATR period, z-score bounds, and timer configuration.
+- Single-alert-per-bar/per-signal deduplication to reduce noisy duplicate notifications.
+- Defensive ATR readiness checks before plotting signal markers.
+- Optional timer-based dashboard refresh via `InpRealtimeDashboard` + `InpTimerSeconds`.
+
+> Note: This is an indicator (signals/alerts/dashboard), not an order execution EA.
